@@ -1,0 +1,36 @@
+{
+  "name": "gbc-analytics-dashboard",
+  "version": "1.0.0",
+  "description": "Mini dashboard with RetailCRM, Supabase, and Telegram alerts",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "import:retailcrm": "tsx scripts/import-mock-to-retailcrm.ts",
+    "sync:retailcrm": "tsx scripts/sync-retailcrm-to-supabase.ts",
+    "notify:telegram": "tsx scripts/check-high-value-orders.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.77.0",
+    "dotenv": "^17.2.3",
+    "next": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "recharts": "^3.4.1",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "^16.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
