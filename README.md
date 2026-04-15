@@ -6,21 +6,28 @@
 2. Синхронизация заказов из RetailCRM в Supabase
 3. Веб-дашборд (Next.js) с графиком заказов и выручки
 4. Telegram-уведомления для новых заказов свыше `50 000 ₸`
+5. Автозапуск sync/notify по расписанию через Vercel Cron
 
 ## Стек
 
 - Next.js 16 + TypeScript
-- Supabase (таблицы `orders`, `sync_state`)
+- Supabase (`orders`, `sync_state`)
 - RetailCRM API v5
 - Telegram Bot API
+- Vercel Cron
 
 ## Структура
 
 - `src/app/page.tsx` — дашборд
+- `src/app/api/cron/sync/route.ts` — cron endpoint sync
+- `src/app/api/cron/notify/route.ts` — cron endpoint notify
+- `src/lib/server/jobs/sync-retailcrm.ts` — ядро sync-логики
+- `src/lib/server/jobs/notify-high-value.ts` — ядро notify-логики
 - `scripts/import-mock-to-retailcrm.ts` — загрузка `mock_orders.json` в RetailCRM
-- `scripts/sync-retailcrm-to-supabase.ts` — перенос заказов из RetailCRM в Supabase
-- `scripts/check-high-value-orders.ts` — отправка Telegram-уведомлений
+- `scripts/sync-retailcrm-to-supabase.ts` — ручной запуск sync
+- `scripts/check-high-value-orders.ts` — ручной запуск notify
 - `supabase/schema.sql` — SQL-схема
+- `vercel.json` — расписание cron-задач
 
 ## Быстрый запуск
 
@@ -46,11 +53,13 @@ RETAILCRM_SITE=...
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_CHAT_ID=...
 HIGH_VALUE_THRESHOLD=50000
+
+CRON_SECRET=...
 ```
 
 ### 3) Создать таблицы в Supabase
 
-Выполни SQL из файла `supabase/schema.sql` в SQL Editor проекта Supabase.
+Выполни SQL из `supabase/schema.sql` в Supabase SQL Editor.
 
 ### 4) Импортировать тестовые заказы в RetailCRM
 
@@ -64,7 +73,13 @@ npm run import:retailcrm
 npm run sync:retailcrm
 ```
 
-### 6) Запустить дашборд локально
+### 6) Проверить Telegram-уведомления вручную
+
+```bash
+npm run notify:telegram
+```
+
+### 7) Запустить дашборд локально
 
 ```bash
 npm run dev
@@ -72,50 +87,45 @@ npm run dev
 
 Открой: [http://localhost:3000](http://localhost:3000)
 
-### 7) Проверить Telegram-уведомления
-
-```bash
-npm run notify:telegram
-```
-
-Скрипт отправит сообщения только по новым заказам (по `sync_state.last_notified_order_id`) и только если сумма заказа >= `HIGH_VALUE_THRESHOLD`.
-
 ## Деплой на Vercel
 
 1. Импортируй репозиторий в Vercel.
-2. Добавь все переменные окружения из `.env.local` в Project Settings -> Environment Variables.
-3. Нажми Deploy.
+2. Добавь все переменные окружения из `.env.local` в `Project Settings -> Environment Variables`.
+3. Обязательно добавь `CRON_SECRET`.
+4. Нажми Deploy.
 
-## Что нужно от CRM для полного запуска
+## Cron в Vercel
 
-Минимум, который нужен от тебя по RetailCRM:
+Расписание задаётся в `vercel.json`:
 
-1. `RETAILCRM_BASE_URL` (например `https://demo123.retailcrm.ru`)
-2. `RETAILCRM_API_KEY`
-3. `RETAILCRM_SITE` (код магазина, например `demo`)
+- `0 3 * * *` -> `/api/cron/sync`
+- `20 3 * * *` -> `/api/cron/notify`
 
-Для полной автоматизации уведомлений дополнительно:
+Это UTC-время. Для `Europe/Kaliningrad` это `06:00` и `06:20`.
 
-4. Подтверждение, что API-ключ имеет доступ к заказам (чтение/создание)
-5. При желании webhook-сценарий: публичный URL и событие `order create` в RetailCRM
+Оба endpoint защищены заголовком `Authorization: Bearer <CRON_SECRET>`.
+Vercel добавляет его автоматически при настроенном `CRON_SECRET`.
 
 ## Какие промпты давал AI-инструмент
 
 1. «Изучи README и реализуй pipeline RetailCRM -> Supabase -> Dashboard + Telegram alerts»
-2. «Создай SQL-схему для orders/sync_state и подготовь скрипты импорта/синка/уведомлений»
-3. «Сделай дашборд на Next.js с графиком заказов из Supabase и метриками»
-4. «Проверь build/lint, исправь типизацию и совместимость»
+2. «Сделай рабочие скрипты импорта/синка/уведомлений и проверь на реальных данных»
+3. «Добавь автозапуск через Vercel Cron с защитой CRON_SECRET»
+4. «Проверь build/lint и обнови README с runbook»
 
 ## Где застрял и как решил
 
 1. Проблема: `next build` падал из-за BOM в `package.json` и `tsconfig.json`.
    Решение: переписал файлы в UTF-8 без BOM.
-2. Проблема: в Next 16 команда `next lint` не работает как отдельный subcommand.
-   Решение: заменил lint-скрипт на прямой `eslint .`.
-3. Проблема: строгая типизация `recharts` tooltip и индексных типов TS.
-   Решение: привёл formatter к безопасной типизации и поправил типы в `src/lib/types.ts`.
+2. Проблема: исходный payload `mock_orders.json` не принимался RetailCRM (`Order is not loaded`).
+   Решение: добавил sanitize payload перед отправкой в `orders/create`.
+3. Проблема: в Next 16 команда `next lint` не работает как отдельный subcommand.
+   Решение: заменил lint-скрипт на `eslint .`.
 
 ## Проверка
 
 - `npm run build` — успешно
 - `npm run lint` — успешно
+- `npm run import:retailcrm` — успешно (50/50)
+- `npm run sync:retailcrm` — успешно
+- `npm run notify:telegram` — успешно

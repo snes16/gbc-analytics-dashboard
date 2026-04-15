@@ -1,8 +1,13 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { getEnv, requireEnv, sleep } from "./utils/common";
-import { createOrderInRetailCrm } from "./utils/retailcrm";
+import { config } from "dotenv";
+
+import { getEnv, requireEnv, sleep } from "../src/lib/server/env";
+import { createOrderInRetailCrm } from "../src/lib/server/retailcrm";
+
+config({ path: ".env.local" });
+config();
 
 type MockOrder = {
   firstName?: string;
